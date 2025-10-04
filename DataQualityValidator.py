@@ -8,13 +8,15 @@ Requirements:
 - pandas
 - numpy
 - reportlab (for PDF generation)
+- matplotlib (for charts and visualizations)
 
 Install dependencies:
-pip install pandas numpy reportlab
+pip install pandas numpy reportlab matplotlib
 """
 
 import pandas as pd
 import numpy as np
+import re
 from datetime import datetime
 from pathlib import Path
 import warnings
@@ -24,17 +26,21 @@ warnings.filterwarnings('ignore')
 try:
     from reportlab.lib.pagesizes import letter
     from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
-                                    Table, TableStyle)
+                                    Table, TableStyle, PageBreak, Image)
     from reportlab.lib.styles import (getSampleStyleSheet,
                                       ParagraphStyle)
     from reportlab.lib.units import inch
-    from reportlab.lib.colors import black, red, green, orange
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+    from io import BytesIO
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
-    print("Warning: reportlab not installed. PDF generation not available.")
-    print("Install with: pip install reportlab")
+    print("Warning: reportlab and/or matplotlib not installed. "
+          "PDF generation not available.")
+    print("Install with: pip install reportlab matplotlib")
 
 
 class DataQualityValidator:
@@ -132,7 +138,6 @@ class DataQualityValidator:
         
     def _extract_year_from_path(self, path):
         """Try to extract year from file path."""
-        import re
         path_str = str(path)
         match = re.search(r'(20\d{2})', path_str)
         if match:
@@ -141,7 +146,6 @@ class DataQualityValidator:
     
     def _extract_source_from_path(self, path):
         """Try to extract source identifier from file path."""
-        import re
         path_str = str(path).lower()
         
         patterns = [
@@ -453,9 +457,8 @@ class DataQualityValidator:
                                   f"{value_agreement:.1f}%")
                             
                             if value_agreement < 70:
-                                issue = (f"Low agreement between sources: only "
-                                         f"{value_agreement:.1f}% of values "
-                                         f"match")
+                                issue = (f"Low agreement between sources: "
+                                         f"only {value_agreement:.1f}% match")
                                 print(f"🚩 {issue}")
                                 self.report['red_flags'].append(issue)
                             elif value_agreement < 90:
@@ -895,23 +898,34 @@ class DataQualityValidator:
                 
                 if overall >= 90:
                     level = "VERY HIGH ✓✓✓"
-                    interpretation = ("The data appears highly reliable across "
-                                     "all dimensions.\nYou can use this data "
-                                     "with high confidence for decision-making.")
+                    interpretation = ("The data appears highly reliable "
+                                      "across all dimensions.\nYou can use "
+                                      "this data with high confidence for "
+                                      "decision-making.")
                 elif overall >= 75:
                     level = "HIGH ✓✓"
-                    interpretation = ("The data appears generally reliable with "
-                                     "minor concerns.\nSuitable for most "
-                                     "reporting and analysis purposes.")
+                    interpretation = ("The data appears generally reliable "
+                                      "with minor concerns.\nSuitable for "
+                                      "most reporting and analysis purposes.")
                 elif overall >= 60:
                     level = "MODERATE ⚠"
-                    interpretation = "The data has some reliability concerns that should be investigated.\nReview specific issues before using for critical decisions."
+                    interpretation = ("The data has some reliability "
+                                      "concerns that should be "
+                                      "investigated.\nReview specific "
+                                      "issues before using for critical "
+                                      "decisions.")
                 elif overall >= 40:
                     level = "LOW ⚠⚠"
-                    interpretation = "The data has significant reliability issues.\nUse with caution and verify key figures independently."
+                    interpretation = ("The data has significant "
+                                      "reliability issues.\nUse with "
+                                      "caution and verify key figures "
+                                      "independently.")
                 else:
                     level = "VERY LOW 🚩"
-                    interpretation = "The data reliability is questionable.\nThorough review and validation required before use."
+                    interpretation = ("The data reliability is "
+                                      "questionable.\nThorough review "
+                                      "and validation required before "
+                                      "use.")
                 
                 f.write(f"Confidence Level: {level}\n\n")
                 f.write(f"{interpretation}\n\n")
@@ -923,21 +937,28 @@ class DataQualityValidator:
             f.write("Component Breakdown:\n")
             if 'completeness' in scores:
                 f.write("  Data Completeness:\n")
-                f.write(f"    - Source 1: {scores['completeness'].get('source1', 0):.1f}%\n")
-                f.write(f"    - Source 2: {scores['completeness'].get('source2', 0):.1f}%\n")
+                f.write(f"    - Source 1: "
+                        f"{scores['completeness'].get('source1', 0):.1f}%\n")
+                f.write(f"    - Source 2: "
+                        f"{scores['completeness'].get('source2', 0):.1f}%\n")
             
             if 'consistency' in scores:
                 f.write("  Internal Consistency:\n")
-                f.write(f"    - Source 1: {scores['consistency'].get('source1', 0):.1f}%\n")
-                f.write(f"    - Source 2: {scores['consistency'].get('source2', 0):.1f}%\n")
+                f.write(f"    - Source 1: "
+                        f"{scores['consistency'].get('source1', 0):.1f}%\n")
+                f.write(f"    - Source 2: "
+                        f"{scores['consistency'].get('source2', 0):.1f}%\n")
             
             if 'agreement' in scores:
-                f.write(f"  Cross-Source Agreement: {scores['agreement'].get('overall', 0):.1f}%\n")
+                f.write(f"  Cross-Source Agreement: "
+                        f"{scores['agreement'].get('overall', 0):.1f}%\n")
             
             if 'plausibility' in scores:
                 f.write("  Historical Plausibility:\n")
-                f.write(f"    - Source 1: {scores['plausibility'].get('source1', 0):.1f}%\n")
-                f.write(f"    - Source 2: {scores['plausibility'].get('source2', 0):.1f}%\n")
+                f.write(f"    - Source 1: "
+                        f"{scores['plausibility'].get('source1', 0):.1f}%\n")
+                f.write(f"    - Source 2: "
+                        f"{scores['plausibility'].get('source2', 0):.1f}%\n")
             
             f.write("\n")
             f.write("="*70 + "\n")
@@ -945,13 +966,16 @@ class DataQualityValidator:
             f.write("="*70 + "\n\n")
             
             f.write(f"Total Concerns: {total_concerns}\n")
-            f.write(f"  - Critical Issues (Red Flags): {self.report['summary']['red_flags']}\n")
-            f.write(f"  - Moderate Concerns: {self.report['summary']['reliability_concerns']}\n\n")
+            f.write(f"  - Critical Issues (Red Flags): "
+                    f"{self.report['summary']['red_flags']}\n")
+            f.write(f"  - Moderate Concerns: "
+                    f"{self.report['summary']['reliability_concerns']}\n\n")
             
             if self.report['red_flags']:
                 f.write("🚩 CRITICAL ISSUES (RED FLAGS)\n")
                 f.write("-"*70 + "\n")
-                f.write("These are serious data quality problems that significantly impact reliability:\n\n")
+                f.write("These are serious data quality problems that "
+                        "significantly impact reliability:\n\n")
                 for issue in self.report['red_flags']:
                     f.write(f"  • {issue}\n")
                 f.write("\n")
@@ -959,15 +983,18 @@ class DataQualityValidator:
             if self.report['reliability_concerns']:
                 f.write("⚠️  RELIABILITY CONCERNS\n")
                 f.write("-"*70 + "\n")
-                f.write("These issues may affect data reliability and should be reviewed:\n\n")
+                f.write("These issues may affect data reliability and "
+                        "should be reviewed:\n\n")
                 for concern in self.report['reliability_concerns']:
                     f.write(f"  • {concern}\n")
                 f.write("\n")
             
-            if not self.report['red_flags'] and not self.report['reliability_concerns']:
+            if (not self.report['red_flags'] and
+                    not self.report['reliability_concerns']):
                 f.write("✓ NO SIGNIFICANT ISSUES FOUND\n")
                 f.write("-"*70 + "\n")
-                f.write("The data passed all quality checks without major concerns.\n\n")
+                f.write("The data passed all quality checks without "
+                        "major concerns.\n\n")
             
             f.write("="*70 + "\n")
             f.write("RECOMMENDATIONS\n")
@@ -978,33 +1005,46 @@ class DataQualityValidator:
                 
                 if overall >= 75:
                     f.write("✓ DATA IS SUITABLE FOR USE\n\n")
-                    f.write("The data shows good reliability across multiple dimensions.\n")
-                    f.write("You can proceed with using this data for reporting and analysis.\n\n")
+                    f.write("The data shows good reliability across "
+                            "multiple dimensions.\n")
+                    f.write("You can proceed with using this data for "
+                            "reporting and analysis.\n\n")
                     
                     if self.report['reliability_concerns']:
                         f.write("Minor recommendations:\n")
-                        f.write("  - Review the concerns listed above for awareness\n")
-                        f.write("  - Document any known data collection changes\n")
-                        f.write("  - Consider monitoring these metrics in future reports\n")
+                        f.write("  - Review the concerns listed above "
+                                "for awareness\n")
+                        f.write("  - Document any known data collection "
+                                "changes\n")
+                        f.write("  - Consider monitoring these metrics in "
+                                "future reports\n")
                 
                 elif overall >= 60:
                     f.write("⚠️  USE DATA WITH CAUTION\n\n")
                     f.write("The data has moderate reliability concerns.\n\n")
                     f.write("Recommended actions:\n")
-                    f.write("  1. Investigate the specific issues flagged above\n")
-                    f.write("  2. Verify key metrics independently before publication\n")
-                    f.write("  3. Consider adding data quality notes to reports\n")
-                    f.write("  4. Establish data validation processes for future submissions\n")
+                    f.write("  1. Investigate the specific issues "
+                            "flagged above\n")
+                    f.write("  2. Verify key metrics independently "
+                            "before publication\n")
+                    f.write("  3. Consider adding data quality notes "
+                            "to reports\n")
+                    f.write("  4. Establish data validation processes "
+                            "for future submissions\n")
                 
                 else:
                     f.write("🚩 DATA REQUIRES SIGNIFICANT REVIEW\n\n")
                     f.write("The data has substantial reliability issues.\n\n")
                     f.write("Critical actions required:\n")
-                    f.write("  1. DO NOT use this data for official reporting without validation\n")
+                    f.write("  1. DO NOT use this data for official "
+                            "reporting without validation\n")
                     f.write("  2. Investigate all red flags immediately\n")
-                    f.write("  3. Verify data collection and extraction processes\n")
-                    f.write("  4. Consider re-pulling data from source systems\n")
-                    f.write("  5. Document all discrepancies and their resolutions\n")
+                    f.write("  3. Verify data collection and "
+                            "extraction processes\n")
+                    f.write("  4. Consider re-pulling data from "
+                            "source systems\n")
+                    f.write("  5. Document all discrepancies and "
+                            "their resolutions\n")
             
             f.write("\n")
             f.write("="*70 + "\n")
@@ -1018,7 +1058,8 @@ class DataQualityValidator:
             
             f.write("Internal Consistency (25% of overall score):\n")
             f.write("  - Measures data quality within each source\n")
-            f.write("  - Checks for duplicates, outliers, and logical errors\n")
+            f.write("  - Checks for duplicates, outliers, and "
+                    "logical errors\n")
             f.write("  - Higher = cleaner, more reliable data\n\n")
             
             f.write("Cross-Source Agreement (25% of overall score):\n")
@@ -1027,13 +1068,18 @@ class DataQualityValidator:
             f.write("  - Lower = sources disagree (investigate why)\n\n")
             
             f.write("Historical Plausibility (25% of overall score):\n")
-            f.write("  - Measures if current data makes sense given past patterns\n")
+            f.write("  - Measures if current data makes sense "
+                    "given past patterns\n")
             f.write("  - Higher = data follows expected trends\n")
-            f.write("  - Lower = unusual patterns (may indicate errors or real changes)\n\n")
+            f.write("  - Lower = unusual patterns (may indicate "
+                    "errors or real changes)\n\n")
             
-            f.write("Note: Low cross-source agreement doesn't mean the data is wrong,\n")
-            f.write("it means the sources disagree and you need to investigate why.\n")
-            f.write("Both sources could be correct but measuring different things,\n")
+            f.write("Note: Low cross-source agreement doesn't mean "
+                    "the data is wrong,\n")
+            f.write("it means the sources disagree and you need to "
+                    "investigate why.\n")
+            f.write("Both sources could be correct but measuring "
+                    "different things,\n")
             f.write("or one (or both) could have data quality issues.\n\n")
             
             f.write("="*70 + "\n")
@@ -1044,7 +1090,9 @@ class DataQualityValidator:
         print(f"\nSummary: {total_concerns} total concerns identified")
         
         if 'overall_data_confidence' in self.report['confidence_scores']:
-            print(f"Overall Data Confidence: {self.report['confidence_scores']['overall_data_confidence']:.1f}%")
+            conf_scores = self.report['confidence_scores']
+            overall_conf = conf_scores['overall_data_confidence']
+            print(f"Overall Data Confidence: {overall_conf:.1f}%")
         
         # Generate PDF version if requested and available
         if generate_pdf and PDF_AVAILABLE:
@@ -1053,233 +1101,541 @@ class DataQualityValidator:
                 pdf_path = output_path + '.pdf'
             self.generate_pdf_report(pdf_path)
         elif generate_pdf and not PDF_AVAILABLE:
-            print("\n⚠️  PDF generation requested but reportlab not available.")
+            print("\n⚠️  PDF generation requested but reportlab "
+                  "not available.")
             print("Install reportlab with: pip install reportlab")
         
         return self.report
     
     def generate_pdf_report(self, output_path='data_quality_report.pdf'):
-        """Generate a comprehensive PDF data quality and confidence report."""
+        """Generate a comprehensive, visually appealing PDF data quality
+        report."""
         if not PDF_AVAILABLE:
-            raise ImportError("reportlab is required for PDF generation. "
-                             "Install with: pip install reportlab")
+            raise ImportError("reportlab and matplotlib are required for "
+                              "PDF generation. Install with: pip install "
+                              "reportlab matplotlib")
         
-        print(f"Generating PDF report: {output_path}")
+        print(f"Generating enhanced PDF report: {output_path}")
         
-        # Create the PDF document
-        doc = SimpleDocTemplate(output_path, pagesize=letter)
+        # Create the PDF document with custom styling
+        doc = SimpleDocTemplate(
+            output_path,
+            pagesize=letter,
+            rightMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            topMargin=1*inch,
+            bottomMargin=1*inch
+        )
         story = []
         
-        # Get styles
+        # Enhanced styles
         styles = getSampleStyleSheet()
+        
+        # Title style with blue color
         title_style = ParagraphStyle(
-            'CustomTitle',
+            'EnhancedTitle',
             parent=styles['Heading1'],
-            fontSize=18,
+            fontSize=24,
             spaceAfter=30,
-            alignment=TA_CENTER
+            spaceBefore=20,
+            alignment=TA_CENTER,
+            textColor=HexColor('#1f4e79'),
+            fontName='Helvetica-Bold'
+        )
+        
+        subtitle_style = ParagraphStyle(
+            'Subtitle',
+            parent=styles['Normal'],
+            fontSize=14,
+            spaceAfter=30,
+            alignment=TA_CENTER,
+            textColor=HexColor('#2c5aa0'),
+            fontName='Helvetica-Oblique'
         )
         
         heading_style = ParagraphStyle(
-            'CustomHeading',
+            'EnhancedHeading',
             parent=styles['Heading2'],
-            fontSize=14,
-            spaceAfter=12,
-            spaceBefore=20
+            fontSize=16,
+            spaceAfter=15,
+            spaceBefore=25,
+            textColor=HexColor('#1f4e79'),
+            fontName='Helvetica-Bold',
+            borderWidth=1,
+            borderColor=HexColor('#1f4e79'),
+            borderPadding=5
         )
         
         subheading_style = ParagraphStyle(
-            'CustomSubHeading',
+            'EnhancedSubHeading',
             parent=styles['Heading3'],
             fontSize=12,
-            spaceAfter=8,
-            spaceBefore=10
+            spaceAfter=10,
+            spaceBefore=15,
+            textColor=HexColor('#2c5aa0'),
+            fontName='Helvetica-Bold'
         )
         
-        # Title
+        body_style = ParagraphStyle(
+            'EnhancedBody',
+            parent=styles['Normal'],
+            fontSize=10,
+            spaceAfter=6,
+            alignment=TA_JUSTIFY,
+            fontName='Helvetica'
+        )
+        
+        # Create title page
+        story.append(Spacer(1, 1*inch))
         story.append(Paragraph("DATA QUALITY & RELIABILITY ASSESSMENT",
                                title_style))
         story.append(Paragraph("College Workforce and Student Body Data",
-                               styles['Normal']))
-        story.append(Spacer(1, 20))
+                               subtitle_style))
+        story.append(Spacer(1, 0.5*inch))
         
-        # Report metadata
-        story.append(Paragraph("Report Information", heading_style))
-        
-        metadata = [
-            ["Generated:", self.report['summary']['generated_at']],
-            ["Source 1:", str(self.source1_path)],
-            ["Source 2:", str(self.source2_path)],
-        ]
-        
-        if self.historical_data:
-            metadata.append(["Historical Files:",
-                            str(len(self.historical_data))])
-        
-        metadata_table = Table(metadata, colWidths=[2*inch, 4*inch])
-        metadata_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ]))
-        story.append(metadata_table)
-        story.append(Spacer(1, 20))
-        
-        # Confidence Scores Section
+        # Executive Summary Box
         scores = self.report['confidence_scores']
-        story.append(Paragraph("CONFIDENCE SCORES", heading_style))
-        
         if 'overall_data_confidence' in scores:
             overall = scores['overall_data_confidence']
             
-            # Determine confidence level and color
             if overall >= 90:
-                level = "VERY HIGH ✓✓✓"
-                color = green
+                summary_color = HexColor('#d5f4e6')
+                border_color = HexColor('#28a745')
+                status = "EXCELLENT"
             elif overall >= 75:
-                level = "HIGH ✓✓"
-                color = green
+                summary_color = HexColor('#d1ecf1')
+                border_color = HexColor('#17a2b8')
+                status = "GOOD"
             elif overall >= 60:
-                level = "MODERATE ⚠"
-                color = orange
+                summary_color = HexColor('#fff3cd')
+                border_color = HexColor('#ffc107')
+                status = "MODERATE"
             else:
-                level = "LOW/VERY LOW 🚩"
-                color = red
+                summary_color = HexColor('#f8d7da')
+                border_color = HexColor('#dc3545')
+                status = "NEEDS ATTENTION"
             
-            # Overall confidence score
-            confidence_data = [
-                ["Overall Data Confidence:", f"{overall:.1f}%"],
-                ["Confidence Level:", level],
+            # Executive summary table with colored background
+            exec_summary = [
+                ["EXECUTIVE SUMMARY"],
+                [f"Overall Data Confidence: {overall:.1f}%"],
+                [f"Data Quality Status: {status}"],
+                [f"Generated: {self.report['summary']['generated_at']}"]
             ]
             
-            confidence_table = Table(confidence_data,
-                                     colWidths=[3*inch, 2*inch])
-            confidence_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('TEXTCOLOR', (1, 0), (1, 0), color),
-                ('FONTNAME', (1, 0), (1, 0), 'Helvetica-Bold'),
+            exec_table = Table(exec_summary, colWidths=[5*inch])
+            exec_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), border_color),
+                ('BACKGROUND', (0, 1), (-1, -1), summary_color),
+                ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#ffffff')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 12),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 2, border_color),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [summary_color]),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                ('TOPPADDING', (0, 0), (-1, -1), 12),
             ]))
-            story.append(confidence_table)
-            story.append(Spacer(1, 15))
+            story.append(exec_table)
         
-        # Component breakdown
-        story.append(Paragraph("Component Breakdown", subheading_style))
+        story.append(Spacer(1, 0.5*inch))
         
-        component_data = [["Component", "Source 1", "Source 2", "Overall"]]
+        # Report metadata in an attractive table
+        metadata_data = [
+            ["Report Details", ""],
+            ["Source 1 File", str(self.source1_path)],
+            ["Source 2 File", str(self.source2_path)],
+        ]
         
+        if self.historical_data:
+            metadata_data.append(["Historical Files",
+                                  f"{len(self.historical_data)} files"])
+        
+        total_concerns = (len(self.report['red_flags']) +
+                          len(self.report['reliability_concerns']))
+        metadata_data.append(["Total Concerns", str(total_concerns)])
+        
+        metadata_table = Table(metadata_data, colWidths=[2*inch, 3.5*inch])
+        metadata_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), HexColor('#1f4e79')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#ffffff')),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), HexColor('#f8f9fa')),
+            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 1), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 1, HexColor('#dee2e6')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(metadata_table)
+        
+        # Page break before main content
+        story.append(PageBreak())
+        
+        # Main Content - Confidence Scores with Visual Elements
+        story.append(Paragraph("CONFIDENCE ASSESSMENT", heading_style))
+        
+        if 'overall_data_confidence' in scores:
+            # Create confidence gauge visualization using matplotlib
+            confidence_chart = self._create_confidence_gauge(overall)
+            if confidence_chart:
+                story.append(confidence_chart)
+                story.append(Spacer(1, 20))
+        
+        # Enhanced Component Breakdown Table
+        story.append(Paragraph("Detailed Component Analysis",
+                               subheading_style))
+        
+        # Header with enhanced styling
+        component_data = [
+            ["Assessment Component", "Source 1 Score", "Source 2 Score",
+             "Combined Score", "Status"]
+        ]
+        
+        # Add component data with status indicators
         if 'completeness' in scores:
+            s1_comp = scores['completeness'].get('source1', 0)
+            s2_comp = scores['completeness'].get('source2', 0)
+            avg_comp = (s1_comp + s2_comp) / 2
+            status = ("✓ Good" if avg_comp >= 80 else
+                      "⚠ Review" if avg_comp >= 60 else "🚩 Critical")
             component_data.append([
-                "Data Completeness",
-                f"{scores['completeness'].get('source1', 0):.1f}%",
-                f"{scores['completeness'].get('source2', 0):.1f}%",
-                "-"
+                "Data Completeness", f"{s1_comp:.1f}%", f"{s2_comp:.1f}%",
+                f"{avg_comp:.1f}%", status
             ])
         
         if 'consistency' in scores:
+            s1_cons = scores['consistency'].get('source1', 0)
+            s2_cons = scores['consistency'].get('source2', 0)
+            avg_cons = (s1_cons + s2_cons) / 2
+            status = ("✓ Good" if avg_cons >= 80 else
+                      "⚠ Review" if avg_cons >= 60 else "🚩 Critical")
             component_data.append([
-                "Internal Consistency",
-                f"{scores['consistency'].get('source1', 0):.1f}%",
-                f"{scores['consistency'].get('source2', 0):.1f}%",
-                "-"
+                "Internal Consistency", f"{s1_cons:.1f}%", f"{s2_cons:.1f}%",
+                f"{avg_cons:.1f}%", status
             ])
         
         if 'agreement' in scores:
+            agreement_score = scores['agreement'].get('overall', 0)
+            status = ("✓ Good" if agreement_score >= 80 else
+                      "⚠ Review" if agreement_score >= 60 else "🚩 Critical")
             component_data.append([
-                "Cross-Source Agreement",
-                "-", "-",
-                f"{scores['agreement'].get('overall', 0):.1f}%"
+                "Cross-Source Agreement", "-", "-",
+                f"{agreement_score:.1f}%", status
             ])
         
         if 'plausibility' in scores:
+            s1_plaus = scores['plausibility'].get('source1', 0)
+            s2_plaus = scores['plausibility'].get('source2', 0)
+            avg_plaus = ((s1_plaus + s2_plaus) / 2 if s1_plaus and s2_plaus
+                         else (s1_plaus or s2_plaus or 0))
+            status = ("✓ Good" if avg_plaus >= 80 else
+                      "⚠ Review" if avg_plaus >= 60 else "🚩 Critical")
             component_data.append([
                 "Historical Plausibility",
-                f"{scores['plausibility'].get('source1', 0):.1f}%",
-                f"{scores['plausibility'].get('source2', 0):.1f}%",
-                "-"
+                f"{s1_plaus:.1f}%" if s1_plaus else "-",
+                f"{s2_plaus:.1f}%" if s2_plaus else "-",
+                f"{avg_plaus:.1f}%", status
             ])
         
-        component_table = Table(component_data, colWidths=[2.5*inch, 1*inch, 1*inch, 1*inch])
+        component_table = Table(
+            component_data,
+            colWidths=[2*inch, 0.8*inch, 0.8*inch, 0.8*inch, 1*inch]
+        )
         component_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), '#E0E0E0'),
-            ('TEXTCOLOR', (0, 0), (-1, 0), black),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            # Header styling
+            ('BACKGROUND', (0, 0), (-1, 0), HexColor('#1f4e79')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#ffffff')),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            
+            # Data rows
+            ('BACKGROUND', (0, 1), (-1, -1), HexColor('#f8f9fa')),
+            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+            
+            # Grid and padding
+            ('GRID', (0, 0), (-1, -1), 1, HexColor('#dee2e6')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 1, black),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            
+            # Alternating row colors
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+             [HexColor('#ffffff'), HexColor('#f8f9fa')]),
         ]))
         story.append(component_table)
         story.append(Spacer(1, 20))
         
-        # Detailed Findings
-        total_concerns = len(self.report['red_flags']) + len(self.report['reliability_concerns'])
-        story.append(Paragraph("DETAILED FINDINGS", heading_style))
-        story.append(Paragraph(f"Total Concerns: {total_concerns}", styles['Normal']))
-        story.append(Spacer(1, 10))
+        # Issues Summary with Visual Impact
+        total_concerns = (len(self.report['red_flags']) +
+                          len(self.report['reliability_concerns']))
         
-        # Red flags
-        if self.report['red_flags']:
-            story.append(Paragraph("🚩 CRITICAL ISSUES (RED FLAGS)", subheading_style))
-            story.append(Paragraph("These are serious data quality problems that significantly impact reliability:", styles['Normal']))
-            story.append(Spacer(1, 8))
+        if total_concerns > 0:
+            story.append(Paragraph("IDENTIFIED ISSUES", heading_style))
             
-            for issue in self.report['red_flags']:
-                story.append(Paragraph(f"• {issue}", styles['Normal']))
-            story.append(Spacer(1, 15))
-        
-        # Reliability concerns
-        if self.report['reliability_concerns']:
-            story.append(Paragraph("⚠️ RELIABILITY CONCERNS", subheading_style))
-            story.append(Paragraph("These issues may affect data reliability and should be reviewed:", styles['Normal']))
-            story.append(Spacer(1, 8))
+            # Issues summary with color coding
+            issues_summary = [
+                ["Issue Type", "Count", "Impact Level"],
+                ["Critical Issues (Red Flags)",
+                 str(len(self.report['red_flags'])), "HIGH"],
+                ["Reliability Concerns",
+                 str(len(self.report['reliability_concerns'])), "MEDIUM"],
+                ["Total Issues", str(total_concerns), "VARIES"]
+            ]
             
-            for concern in self.report['reliability_concerns']:
-                story.append(Paragraph(f"• {concern}", styles['Normal']))
+            issues_table = Table(
+                issues_summary,
+                colWidths=[2.5*inch, 1*inch, 1.5*inch]
+            )
+            issues_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), HexColor('#dc3545')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#ffffff')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('BACKGROUND', (0, 1), (-1, 1), HexColor('#f8d7da')),
+                ('BACKGROUND', (0, 2), (-1, 2), HexColor('#fff3cd')),
+                ('BACKGROUND', (0, 3), (-1, 3), HexColor('#d1ecf1')),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+                ('GRID', (0, 0), (-1, -1), 1, HexColor('#dee2e6')),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ]))
+            story.append(issues_table)
             story.append(Spacer(1, 15))
+            
+            # Detailed issues
+            if self.report['red_flags']:
+                story.append(Paragraph("🚩 Critical Issues", subheading_style))
+                # Limit to first 5 issues
+                for i, issue in enumerate(self.report['red_flags'][:5], 1):
+                    story.append(Paragraph(f"{i}. {issue}", body_style))
+                if len(self.report['red_flags']) > 5:
+                    additional = len(self.report['red_flags']) - 5
+                    story.append(Paragraph(
+                        f"... and {additional} more issues", body_style))
+                story.append(Spacer(1, 10))
+            
+            if self.report['reliability_concerns']:
+                story.append(Paragraph("⚠️ Reliability Concerns",
+                                      subheading_style))
+                # Limit to first 5 concerns for brevity
+                rel_concerns = self.report['reliability_concerns'][:5]
+                concerns_enum = enumerate(rel_concerns, 1)
+                for i, concern in concerns_enum:
+                    story.append(Paragraph(f"{i}. {concern}", body_style))
+                if len(self.report['reliability_concerns']) > 5:
+                    remaining = len(self.report["reliability_concerns"]) - 5
+                    more_text = f"... and {remaining} more concerns"
+                    story.append(Paragraph(more_text, body_style))
+        else:
+            # No issues found - positive message
+            story.append(Paragraph("VALIDATION RESULTS", heading_style))
+            no_issues_data = [
+                ["✓ NO SIGNIFICANT ISSUES FOUND"],
+                ["All data quality checks passed successfully"],
+                ["The data appears reliable and ready for use"]
+            ]
+            no_issues_table = Table(no_issues_data, colWidths=[5*inch])
+            no_issues_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), HexColor('#28a745')),
+                ('BACKGROUND', (0, 1), (-1, -1), HexColor('#d5f4e6')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#ffffff')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 12),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 2, HexColor('#28a745')),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                ('TOPPADDING', (0, 0), (-1, -1), 12),
+            ]))
+            story.append(no_issues_table)
         
-        if not self.report['red_flags'] and not self.report['reliability_concerns']:
-            story.append(Paragraph("✓ NO SIGNIFICANT ISSUES FOUND", subheading_style))
-            story.append(Paragraph("The data passed all quality checks without major concerns.", styles['Normal']))
-            story.append(Spacer(1, 15))
+        story.append(PageBreak())
         
-        # Recommendations
-        story.append(Paragraph("RECOMMENDATIONS", heading_style))
+        # Recommendations with action items
+        story.append(Paragraph("RECOMMENDATIONS & NEXT STEPS", heading_style))
         
         if 'overall_data_confidence' in scores:
             overall = scores['overall_data_confidence']
             
-            if overall >= 75:
-                story.append(Paragraph("✓ DATA IS SUITABLE FOR USE", subheading_style))
-                rec_text = ("The data shows good reliability across multiple dimensions. "
-                           "You can proceed with using this data for reporting and analysis.")
+            recommendations = []
+            if overall >= 90:
+                recommendations = [
+                    "✓ Data quality is excellent and ready for production use",
+                    "✓ Implement regular monitoring to maintain "
+                    "quality standards",
+                    "✓ Consider this dataset as a quality benchmark "
+                    "for future assessments",
+                    "✓ Document current processes to ensure consistency"
+                ]
+                rec_color = HexColor('#d5f4e6')
+                border_color = HexColor('#28a745')
+            elif overall >= 75:
+                recommendations = [
+                    "✓ Data quality is good with minor areas for improvement",
+                    "⚠ Address the reliability concerns identified "
+                    "in this report",
+                    "✓ Implement data validation checks in your pipeline",
+                    "✓ Schedule quarterly quality assessments"
+                ]
+                rec_color = HexColor('#d1ecf1')
+                border_color = HexColor('#17a2b8')
             elif overall >= 60:
-                story.append(Paragraph("⚠️ USE DATA WITH CAUTION", subheading_style))
-                rec_text = ("The data has moderate reliability concerns. "
-                           "Recommended actions: 1) Investigate specific issues flagged above, "
-                           "2) Verify key metrics independently before publication, "
-                           "3) Consider adding data quality notes to reports.")
+                recommendations = [
+                    "⚠ Investigate and resolve identified quality "
+                    "issues before use",
+                    "⚠ Implement additional data validation and "
+                    "cleaning procedures",
+                    "⚠ Consider manual verification of key metrics",
+                    "⚠ Establish monthly quality monitoring"
+                ]
+                rec_color = HexColor('#fff3cd')
+                border_color = HexColor('#ffc107')
             else:
-                story.append(Paragraph("🚩 DATA REQUIRES SIGNIFICANT REVIEW", subheading_style))
-                rec_text = ("The data has substantial reliability issues. "
-                           "Critical actions required: 1) DO NOT use this data for official reporting without validation, "
-                           "2) Investigate all red flags immediately, "
-                           "3) Verify data collection and extraction processes.")
+                recommendations = [
+                    "🚩 DO NOT use this data for critical decisions "
+                    "without validation",
+                    "🚩 Immediately investigate all red flag issues",
+                    "🚩 Review and improve data collection processes",
+                    "🚩 Consider re-extracting data from source systems"
+                ]
+                rec_color = HexColor('#f8d7da')
+                border_color = HexColor('#dc3545')
             
-            story.append(Paragraph(rec_text, styles['Normal']))
+            # Create recommendations table
+            rec_data = [["PRIORITY ACTIONS"]]
+            for rec in recommendations:
+                rec_data.append([rec])
+            
+            rec_table = Table(rec_data, colWidths=[6*inch])
+            rec_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), border_color),
+                ('BACKGROUND', (0, 1), (-1, -1), rec_color),
+                ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#ffffff')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 11),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 1, border_color),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                ('TOPPADDING', (0, 0), (-1, -1), 10),
+                ('LEFTPADDING', (0, 1), (-1, -1), 15),
+            ]))
+            story.append(rec_table)
+        
+        story.append(Spacer(1, 30))
+        
+        # Footer with contact/additional info
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=HexColor('#6c757d'),
+            alignment=TA_CENTER
+        )
+        
+        story.append(Paragraph("This report was generated by the "
+                               "Data Quality Validator", footer_style))
+        story.append(Paragraph("For questions or additional analysis, "
+                               "please contact your data team",
+                               footer_style))
         
         # Build the PDF
         doc.build(story)
-        print(f"✓ PDF report saved to: {output_path}")
+        print(f"✓ Enhanced PDF report saved to: {output_path}")
         
         return output_path
     
-    def run_full_validation(self, key_columns=None, key_metrics=None, 
-                           report_path='data_quality_report.txt',
-                           generate_pdf=True):
+    def _create_confidence_gauge(self, confidence_score):
+        """Create a confidence gauge visualization using matplotlib."""
+        try:
+            # Create figure
+            fig, ax = plt.subplots(figsize=(8, 4))
+            fig.patch.set_facecolor('white')
+            
+            # Define gauge parameters
+            # Convert to angle (-90 to 90 degrees)
+            theta = confidence_score * 1.8 - 90
+            
+            # Create gauge background
+            background = patches.Wedge((0.5, 0), 0.4, -90, 90,
+                                       facecolor='lightgray', alpha=0.3)
+            ax.add_patch(background)
+            
+            # Create colored segments
+            segments = [
+                (-90, -54, '#dc3545'),  # 0-20%: Red (Very Low)
+                (-54, -18, '#fd7e14'),  # 20-40%: Orange (Low)
+                (-18, 18, '#ffc107'),   # 40-60%: Yellow (Moderate)
+                (18, 54, '#20c997'),    # 60-80%: Teal (Good)
+                (54, 90, '#28a745')     # 80-100%: Green (Excellent)
+            ]
+            
+            for start, end, color in segments:
+                segment = patches.Wedge((0.5, 0), 0.4, start, end,
+                                        facecolor=color, alpha=0.7)
+                ax.add_patch(segment)
+            
+            # Add needle
+            needle_x = 0.5 + 0.35 * np.cos(np.radians(theta))
+            needle_y = 0.35 * np.sin(np.radians(theta))
+            ax.plot([0.5, needle_x], [0, needle_y], 'k-', linewidth=3)
+            ax.plot(0.5, 0, 'ko', markersize=8)
+            
+            # Add labels
+            ax.text(0.5, -0.15, f'{confidence_score:.1f}%',
+                    ha='center', va='center', fontsize=16, fontweight='bold')
+            ax.text(0.5, -0.25, 'Overall Confidence',
+                    ha='center', va='center', fontsize=12)
+            # Add scale labels
+            ax.text(0.1, 0.2, '0%', ha='center', va='center', fontsize=10)
+            ax.text(0.5, 0.45, '50%', ha='center', va='center', fontsize=10)
+            ax.text(0.9, 0.2, '100%', ha='center', va='center', fontsize=10)
+            
+            ax.set_xlim(0, 1)
+            ax.set_ylim(-0.3, 0.5)
+            ax.set_aspect('equal')
+            ax.axis('off')
+            
+            # Save to bytes
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+            buf.seek(0)
+            plt.close()
+            
+            # Create reportlab Image
+            img = Image(buf, width=6*inch, height=3*inch)
+            return img
+            
+        except (ImportError, IOError, ValueError) as e:
+            print(f"Could not create confidence gauge: {e}")
+            # Return a simple text representation
+            gauge_text = f"Overall Confidence Score: {confidence_score:.1f}%"
+            return Paragraph(gauge_text, getSampleStyleSheet()['Normal'])
+
+    def run_full_validation(self, key_columns=None, key_metrics=None,
+                            report_path='data_quality_report.txt',
+                            generate_pdf=True):
         """Run all validation checks and generate confidence report."""
         self.load_data()
         
@@ -1293,7 +1649,8 @@ class DataQualityValidator:
         agreement = self.assess_source_agreement(key_columns=key_columns)
         self.report['confidence_scores']['agreement'] = agreement
         
-        plausibility = self.assess_historical_plausibility(key_metric_columns=key_metrics)
+        plausibility = self.assess_historical_plausibility(
+            key_metric_columns=key_metrics)
         if plausibility:
             self.report['confidence_scores']['plausibility'] = plausibility
         
@@ -1301,8 +1658,8 @@ class DataQualityValidator:
         self.calculate_confidence_scores()
         
         # Generate report
-        return self.generate_report(output_path=report_path, 
-                                   generate_pdf=generate_pdf)
+        return self.generate_report(output_path=report_path,
+                                    generate_pdf=generate_pdf)
 
 
 # Example usage

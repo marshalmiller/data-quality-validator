@@ -1,4 +1,26 @@
+# Data Quality Validator - Required Dependencies
+# Install all dependencies with: pip install -r requirements.txt
+
+# Core data processing libraries
 pandas>=1.3.0
 numpy>=1.21.0
-reportlab>=3.6.0
+
+# Excel file support
 openpyxl>=3.0.7
+
+# PDF generation and visualization (for enhanced reports)
+reportlab>=3.6.0
+matplotlib>=3.5.0
+
+# Type stubs for better IDE support (optional but recommended)
+# These provide better autocomplete and type checking in IDEs like VS Code
+pandas-stubs>=2.0.0
+types-reportlab>=3.6.0
+types-openpyxl>=3.1.0
+
+# Note: All dependencies are required for full functionality
+# - pandas & numpy: Core data analysis
+# - openpyxl: Excel file reading (.xlsx support)
+# - reportlab: Professional PDF report generation
+# - matplotlib: Charts and visualizations in PDF reports
+# - *-stubs/*types-* packages: Better IDE autocomplete and type checking (optional)
